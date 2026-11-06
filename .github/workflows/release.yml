@@ -43,7 +43,7 @@ jobs:
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           files: |
-            dist/*.exe
-            dist/*.msi
+            dist/**/*.exe
+            dist/**/*.msi
             dist/*.apk
             dist/*.zip
