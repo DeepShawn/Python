@@ -99,9 +99,9 @@ jobs:
       - run: npm ci
       - run: npm run vendor
       - name: 构建 APK（WebView + Pyodide 离线运行时）
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
         run: |
+          export NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
+          echo "ANDROID_HOME=$ANDROID_HOME NDK_HOME=$NDK_HOME"
           npx tauri android init --ci
           npx tauri icon src-tauri/icons/icon.png
           npx tauri android build --apk --target aarch64 --target armv7 --ci

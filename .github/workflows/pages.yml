@@ -1,5 +1,7 @@
 name: 发布 GitHub Pages
 
+# 网站从 gh-pages 分支发布（仓库 Settings → Pages 的来源为 gh-pages 分支）。
+# 每次 web/ 变化时打包离线依赖并更新 gh-pages 分支。
 on:
   push:
     branches: ["ccr-7976ba6a-3lfhxt"]   # 仓库默认分支
@@ -7,9 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -19,9 +19,6 @@ jobs:
   deploy:
     name: 部署网页版
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,11 +31,12 @@ jobs:
       - run: npm ci
       - name: 打包离线依赖（Pyodide、CodeMirror、Blockly 等）
         run: npm run vendor
-      - uses: actions/configure-pages@v5
+      - run: touch web/.nojekyll
+      - name: 更新 gh-pages 分支
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: 部署网页版
