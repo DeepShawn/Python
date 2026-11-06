@@ -267,8 +267,9 @@ MyProject/
 3. **Windows 版**：Tauri 2 打包前端；Python 执行通过 Rust 侧启动随包附带的嵌入式 CPython 子进程，使用 JSON 行协议与前端通信（与 Pyodide Worker 的消息协议相同）。
 4. **Android 版**：Tauri 2 Android + WebView 内的 Pyodide（与网页版同一套离线资源）；`runtime_info` 报告没有原生 Python 时前端自动选择 Pyodide。Chaquopy 原生 CPython 作为可选扩展，可接入同一个 `nexus_host.py` 协议。
 5. **执行隔离**：网页版 Python 运行在 Web Worker 中，界面永不阻塞；死循环可通过终止 Worker 立即停止并自动重启运行时。桌面版通过结束并重启 CPython 子进程实现同样效果。
-6. **交互式 input()**：网页版在跨源隔离（COOP/COEP，由 Service Worker 自动添加）时用 SharedArrayBuffer + Atomics 让 Worker 同步等待用户输入；桌面版由宿主通过 JSON 行协议向前端请求输入。「标准输入」面板中的预置内容优先使用，用完后再实时询问；判题始终不使用交互输入。
-7. **执行适配层接口**（三端一致，`web/js/worker.js` 与 `web/py/nexus_host.py` 实现同一协议）：
+6. **交互式 input()**：网页版在跨源隔离（COOP/COEP，由 Service Worker 自动添加）时用 SharedArrayBuffer + Atomics 让 Worker 同步等待用户输入；桌面版由宿主通过 JSON 行协议向前端请求输入。输入直接在 IDLE 式 Shell 中进行：提示语出现在输出末尾，用户在其后原位输入（Ctrl+D 表示 EOF）；判题始终使用测试用例中的输入，不使用交互输入。
+7. **IDLE 式 Shell**：程序输出、`input()` 与 `>>>` 交互解释器在同一个控制台中。每次运行先打印 RESTART 分隔线并清空命名空间，程序在 Shell 的命名空间中运行，结束后可以在 `>>>` 处继续访问其中的变量和函数（与 IDLE 行为一致）。
+8. **执行适配层接口**（三端一致，`web/js/worker.js` 与 `web/py/nexus_host.py` 实现同一协议）：
 
 | 方法 | 说明 |
 | --- | --- |
@@ -279,7 +280,7 @@ MyProject/
 | `test({files})` | 发现并运行 `tests/test_*.py` |
 | `judge({code, cases, requires, limits, reveal})` | 按测试用例判题，检查代码结构，限制执行行数 / 时间 |
 | `checkRandom({expr, params, answer})` | 随机参数题判分 |
-| `replPush(line)` / `complete(prefix)` | 交互式解释器与补全 |
+| `replPush(line)` / `complete(prefix)` | Shell 的 `>>>` 交互与补全（与程序共用命名空间） |
 | `restart()` | 强制终止并重启运行时 |
 | `provideInput(value)` | 回应程序的 `input()` 请求 |
 | 原生专属：`netServe`、`installLocal`、`buildExe`、`openFolder`、`saveFolder` | 本机 HTTP 教学网站、离线安装 .whl、PyInstaller 打包、真实文件夹项目 |
@@ -300,7 +301,7 @@ MyProject/
 
 | 数据 | 内容 | 存储位置 |
 | --- | --- | --- |
-| 项目 | 多文件源码、当前文件、标准输入；积木布局 `.blocks.json` | localStorage；Windows 版可保存到本地文件夹 |
+| 项目 | 多文件源码、当前文件；积木布局 `.blocks.json` | localStorage；Windows 版可保存到本地文件夹 |
 | 学习进度 | 已完成课时、时间戳 | localStorage |
 | 习题记录 | 尝试次数、错误次数、是否通过、草稿代码、随机参数 | localStorage |
 | 考试 | 进行中的答卷（可断点续考）、成绩记录 | localStorage |
@@ -411,7 +412,7 @@ Python/
 | 风险 | 影响 | 对策 |
 | --- | --- | --- |
 | Pyodide 与 CPython 行为差异（无线程、无子进程、无真实网络） | 部分课程无法在网页版运行 | 课程标注平台要求；爬虫课程使用本地样本 |
-| `input()` 无法在 Worker 中同步阻塞读取键盘 | 交互式输入体验差 | 已解决：SharedArrayBuffer + Atomics（Service Worker 自动开启跨源隔离）；Safari 等不支持 `credentialless` 的环境退回「标准输入」面板 |
+| `input()` 无法在 Worker 中同步阻塞读取键盘 | 交互式输入体验差 | 已解决：SharedArrayBuffer + Atomics（Service Worker 自动开启跨源隔离）；Safari 等不支持 `credentialless` 的环境中 `input()` 会抛出 EOFError 并提示（Windows 版不受影响） |
 | CI 构建产物未在真机验证 | Windows / Android 安装包可能存在平台问题 | 发布前在 Windows 10/11 与 Android 真机上冒烟测试；外壳逻辑已有 cargo 单元测试，宿主协议有 Python 与浏览器端到端测试 |
 | 离线环境下答案可被逆向 | 练习作弊 | 分层保护 + 明确告知「不能绝对防破解」；正式考试需要可信服务器 |
 | 安装包体积（Pyodide 约 14 MB，CPython 约 25 MB，第三方库更大） | 下载与存储成本 | 第三方库按课程分包，按需导入离线包 |
@@ -424,7 +425,8 @@ Python/
 - [x] CodeMirror 6 编辑器：语法高亮、自动补全、括号匹配、折叠、搜索、撤销历史、断点栏；未打包时回退到轻量编辑器
 - [x] 直接运行（流式输出、错误行标记、终止死循环）与**交互式 input()**
 - [x] 可视化逐行运行：真实执行顺序；单步 / 回退 / 播放 / 跳到断点 / 进度条；0.25×–4× 速度；变量变化；调用栈；流程图同步高亮
-- [x] 交互式解释器、编译检查（字节码）、unittest 测试模式
+- [x] IDLE 式 Shell（输出、input() 与 >>> 同处，运行后可继续使用程序变量）、编译检查（字节码）、unittest 测试模式
+- [x] 字符串、f-string 与注释内部不弹出代码补全
 - [x] AST 流程图，SVG / PNG / Mermaid 导出；函数调用图、模块导入图、类继承图
 - [x] 三种沉浸式主题、合成音效、特效开关、低性能设备降级
 - [x] PWA 离线缓存；移动端符号快捷栏与窄屏布局

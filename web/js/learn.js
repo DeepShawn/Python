@@ -48,7 +48,6 @@ export function initLearn(ctx) {
       ${l.note ? `<p class="note">${esc(l.note)}</p>` : ""}
       <div class="lesson-code"><div class="code-title">示例代码${l.files ? `（另含 ${Object.keys(l.files).map(esc).join("、")}）` : ""}</div>
         <div id="lessonEditor" class="lesson-editor"></div></div>
-      ${l.stdin ? `<p class="muted small">标准输入：<code>${esc(l.stdin).replace(/\n/g, " ⏎ ")}</code></p>` : ""}
       <div class="lesson-actions">
         <button class="primary" data-act="open">在编辑器中打开</button>
         <button data-act="visual">◉ 可视化运行</button>
@@ -84,7 +83,7 @@ export function initLearn(ctx) {
     if (act === "practice") { ctx.openQuestion(l.practice); return; }
     // 课程示例放进独立文件，避免覆盖用户代码
     const name = `lesson_${l.id.replace(/^l-/, "").replace(/-/g, "_")}.py`;
-    ctx.openInIde(name, l.code, l.files, l.stdin);
+    ctx.openInIde(name, l.code, l.files);
     if (act === "visual") ctx.startTrace();
     if (act === "flow") ctx.buildFlow(true);
   });

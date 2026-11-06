@@ -529,3 +529,23 @@ progress { width: min(420px, 100%); accent-color: var(--accent); }
   .blockly-host { min-height: 60vh; }
   .exam-nav { max-height: 260px; }
 }
+
+/* ================================================================ IDLE 式 Shell */
+.shell { cursor: text; outline: none; }
+.shell .shell-log { white-space: pre-wrap; word-break: break-word; }
+.shell .shell-line { white-space: pre-wrap; }
+.shell .shell-prompt { color: var(--muted); }
+.shell .shell-line.program .shell-prompt { color: var(--text); }
+.shell .shell-edit {
+  display: inline-block; vertical-align: top; outline: none; min-width: 2ch; max-width: 100%; color: var(--accent);
+  white-space: pre-wrap; word-break: break-word; caret-color: var(--ed-caret);
+}
+.shell .shell-edit:empty::after { content: "\200b"; }
+.shell .in { color: var(--accent); }
+.shell .shell-line.program .shell-edit { border-bottom: 1px dashed var(--accent); padding: 0 2px; }
+:root:not(.no-motion) .shell .shell-line.program .shell-edit:focus { animation: input-pulse 1.6s ease-in-out infinite; }
+:root[data-theme="matrix"] .shell .in { text-shadow: 0 0 6px rgba(0, 255, 102, 0.8); }
+.shell-hint { margin-right: 8px; }
+#pane-out-wrap { flex-direction: column; }
+#pane-out-wrap > .console { flex: 1; }
+@media (max-width: 860px) { .shell-hint { display: none; } }

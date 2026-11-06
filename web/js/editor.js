@@ -28,6 +28,41 @@ const TOKEN_RE = new RegExp([
   /([A-Za-z_À-￿][\wÀ-￿]*)/.source,                    // 5 标识符
 ].join("|"), "g");
 
+/**
+ * 光标前的文本（textBefore）是否处在字符串或注释内部。
+ * 识别单 / 双引号、三引号（可跨行）、转义字符和 # 注释；单引号字符串在换行处结束。
+ * 用于在字符串和注释里关闭代码补全。
+ */
+export function inStringOrComment(textBefore) {
+  const t = textBefore;
+  const n = t.length;
+  let i = 0;
+  while (i < n) {
+    const c = t[i];
+    if (c === "#") {
+      const nl = t.indexOf("\n", i);
+      if (nl === -1) return true;
+      i = nl + 1;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const q = t.startsWith(c + c + c, i) ? c + c + c : c;
+      i += q.length;
+      let closed = false;
+      while (i < n) {
+        if (t[i] === "\\") { i += 2; continue; }
+        if (q.length === 1 && t[i] === "\n") { closed = true; i++; break; }
+        if (t.startsWith(q, i)) { i += q.length; closed = true; break; }
+        i++;
+      }
+      if (!closed) return true;
+      continue;
+    }
+    i++;
+  }
+  return false;
+}
+
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -330,6 +365,7 @@ export class Editor extends EventTarget {
   }
 
   _suggest(force = false) {
+    if (inStringOrComment(this.ta.value.slice(0, this.ta.selectionStart))) { this._hidePopup(); return; }
     const word = this._wordBeforeCursor();
     if (!word || (word.length < 2 && !force)) { this._hidePopup(); return; }
     const idents = new Set(this.ta.value.match(/[A-Za-z_]\w{2,}/g) || []);

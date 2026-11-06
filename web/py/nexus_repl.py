@@ -6,7 +6,9 @@ import sys
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
 
-__all__ = ["Repl"]
+from nexus_core import make_input, run_plain
+
+__all__ = ["Repl", "shell", "run_main"]
 
 
 class Repl:
@@ -14,7 +16,7 @@ class Repl:
         self.reset()
 
     def reset(self):
-        self.namespace = {"__name__": "__console__", "__builtins__": builtins}
+        self.namespace = {"__name__": "__main__", "__builtins__": builtins, "input": make_input("")}
         self.buffer = []
         self._compiler = codeop.CommandCompiler()
 
@@ -50,3 +52,13 @@ class Repl:
         """返回命名空间与内置名称中以 prefix 开头的名字。"""
         names = set(self.namespace) | set(dir(builtins))
         return sorted(n for n in names if n.startswith(prefix) and not n.startswith("__"))
+
+
+# IDLE 式 Shell：运行程序前重启（清空命名空间），程序在 Shell 的命名空间中运行，
+# 结束后可以在 >>> 提示符下继续访问程序中定义的变量和函数。
+shell = Repl()
+
+
+def run_main(source, stdin="", filename="main.py"):
+    shell.reset()
+    return run_plain(source, stdin=stdin, filename=filename, namespace=shell.namespace)

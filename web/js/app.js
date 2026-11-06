@@ -9,6 +9,7 @@ import { initLearn } from "./learn.js";
 import { initPractice } from "./practice.js";
 import { initExam } from "./exam.js";
 import { initBlocks } from "./blocks.js";
+import { Shell } from "./shell.js";
 
 const PROJECT_PREFIX = "/home/pyodide/project/";
 
@@ -49,7 +50,6 @@ class TestUtils(unittest.TestCase):
         self.assertEqual([fib(i) for i in range(7)], [0, 1, 1, 2, 3, 5, 8])
 `,
   },
-  stdin: "",
 };
 
 // ------------------------------------------------------------------ 状态
@@ -58,8 +58,6 @@ const state = {
   trace: null,      // { events, stdout, error, idx, playing, timer, file }
   flow: null,
   breakpoints: {},  // 文件名 -> Set(行号)
-  replHistory: [],
-  replIdx: 0,
   progress: store.get("progress", {}),
   lessonsDone: store.get("lessonsDone", {}),
   prefs: store.get("prefs", { theme: "standard", sound: false, motion: null }),
@@ -69,11 +67,11 @@ if (LOW_END && (state.prefs.motion === null || state.prefs.motion === undefined)
 const effects = new Effects($("#fx-bg"), $("#fx-fg"));
 const runtime = await createRuntime();
 const editor = await createEditor($("#editor"));
+const shell = new Shell($("#pane-out"), { runtime });   // IDLE 式 Shell：输出、input() 与 >>> 都在这里
 document.documentElement.classList.toggle("native", !!runtime.native);
 
 function saveProject() {
   state.project.files[state.project.current] = editor.value;
-  state.project.stdin = $("#stdinInput").value;
   store.set("project", state.project);
 }
 
@@ -104,29 +102,16 @@ runtime.addEventListener("status", (e) => {
   if (s === "error") { pill.textContent = "运行时错误"; pill.title = message; appendOut(`运行时加载失败：${message}\n`, "err"); }
 });
 runtime.addEventListener("stream", (e) => {
-  if (!state.trace && !ctx.blocksRunning) appendOut(e.detail.text, e.detail.stream === "stderr" ? "err" : "");
+  if (ctx.blocksRunning) ctx.blocksShell?.write(e.detail.text, e.detail.stream === "stderr" ? "err" : "");
+  else if (!state.trace) shell.write(e.detail.text, e.detail.stream === "stderr" ? "err" : "");
 });
-runtime.addEventListener("input", (e) => {
-  // 程序调用 input() 且标准输入面板已读完：在输出面板中实时向用户索取
-  const prompt = e.detail.prompt;
-  if (ctx.blocksRunning) {
-    const v = window.prompt(prompt || "input()");
-    runtime.provideInput(v === null ? null : v);
-    return;
-  }
-  showPane("out");
-  $("#inputPrompt").textContent = prompt || "input()";
-  $("#inputRow").hidden = false;
-  $("#inputField").value = "";
-  $("#inputField").focus();
+runtime.addEventListener("input", async (e) => {
+  // 程序调用 input()：在 Shell 输出末尾原位输入（IDLE 式）
+  const target = ctx.blocksRunning && ctx.blocksShell ? ctx.blocksShell : shell;
+  if (target === shell) showPane("out");
+  const value = await target.requestInput(e.detail.prompt);
+  runtime.provideInput(value);
 });
-$("#inputRow").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const v = $("#inputField").value;
-  $("#inputRow").hidden = true;
-  runtime.provideInput(v);   // 提示语与输入内容会随程序输出一起显示
-});
-$("#inputEof").addEventListener("click", () => { $("#inputRow").hidden = true; runtime.provideInput(null); });
 
 // ------------------------------------------------------------------ 视图与主题
 const onViewChange = [];
@@ -175,7 +160,6 @@ $$(".bottom .subtabs button[data-pane]").forEach((b) => b.addEventListener("clic
 function showPane(name) {
   $$(".bottom .subtabs button[data-pane]").forEach((b) => b.classList.toggle("active", b.dataset.pane === name));
   $$(".bottom .pane").forEach((p) => p.classList.toggle("active", p.id === `pane-${name}` || p.id === `pane-${name}-wrap`));
-  if (name === "repl") $("#replInput").focus();
 }
 $$(".inspector .subtabs button").forEach((b) => b.addEventListener("click", () => showIPane(b.dataset.ipane)));
 function showIPane(name) {
@@ -221,12 +205,11 @@ function openFile(name) {
   renderFiles();
   store.set("project", state.project);
 }
-/** 把代码（及附带文件、标准输入）放入项目并在 IDE 中打开。 */
-function openInIde(name, code, extraFiles = null, stdin = undefined) {
+/** 把代码（及附带文件）放入项目并在 IDE 中打开。 */
+function openInIde(name, code, extraFiles = null) {
   saveProject();
   state.project.files[name] = code;
   for (const [f, c] of Object.entries(extraFiles || {})) state.project.files[f] = c;
-  if (stdin !== undefined) { $("#stdinInput").value = stdin; state.project.stdin = stdin; }
   showView("ide");
   openFile(name);
 }
@@ -286,7 +269,7 @@ $("#importInput").addEventListener("change", async (e) => {
       try {
         const p = JSON.parse(text);
         if (!p.files || typeof p.files !== "object") throw new Error();
-        loadProject({ current: p.current in p.files ? p.current : Object.keys(p.files)[0], files: p.files, stdin: p.stdin || "" });
+        loadProject({ current: p.current in p.files ? p.current : Object.keys(p.files)[0], files: p.files });
       } catch { toast("不是有效的 Python Nexus 项目文件"); }
     } else {
       state.project.files[file.name] = text;
@@ -299,11 +282,9 @@ function loadProject(p) {
   state.project = p;
   state.breakpoints = {};
   showInEditor(p.current);
-  $("#stdinInput").value = p.stdin || "";
   renderFiles();
   store.set("project", p);
 }
-$("#stdinInput").addEventListener("input", () => { state.project.stdin = $("#stdinInput").value; store.set("project", state.project); });
 
 // 原生（Windows / 桌面）专属功能
 async function nativeAction(act) {
@@ -314,7 +295,7 @@ async function nativeAction(act) {
       const r = await runtime.openFolder();
       if (!r) return;
       state.project.folder = r.dir;
-      loadProject({ current: r.files["main.py"] !== undefined ? "main.py" : Object.keys(r.files)[0], files: r.files, stdin: "", folder: r.dir });
+      loadProject({ current: r.files["main.py"] !== undefined ? "main.py" : Object.keys(r.files)[0], files: r.files, folder: r.dir });
       toast(`已打开 ${r.dir}`);
     } else if (act === "saveFolder") {
       const dir = await runtime.saveFolder(state.project.folder || null, state.project.files);
@@ -340,48 +321,38 @@ async function nativeAction(act) {
   } catch (err) { appendOut(String(err.message || err) + "\n", "err"); } finally { setRunning(false); }
 }
 
-// ------------------------------------------------------------------ 输出
-function appendOut(text, cls = "") {
-  const out = $("#pane-out");
-  const span = document.createElement("span");
-  if (cls) span.className = cls;
-  span.textContent = text;
-  out.appendChild(span);
-  out.scrollTop = out.scrollHeight;
-}
-function clearOut() { $("#pane-out").textContent = ""; $("#inputRow").hidden = true; }
+// ------------------------------------------------------------------ 输出（Shell）
+function appendOut(text, cls = "") { shell.write(text, cls); }
 $("#clearOutBtn").addEventListener("click", () => {
   const active = $(".bottom .pane.active");
-  if (active.id === "pane-repl") $("#replLog").textContent = "";
-  else if (active.id === "pane-out-wrap") $("#pane-out").textContent = "";
-  else if (active.id !== "pane-stdin") active.textContent = "";
+  if (active.id === "pane-out-wrap") { shell.clear(); shell.focus(); } else active.textContent = "";
 });
 
 function setRunning(on) {
   $("#stopBtn").disabled = !on;
   $("#runBtn").disabled = on;
   $("#visualBtn").disabled = on;
-  if (!on) $("#inputRow").hidden = true;
+  shell.setRunning(on);
 }
 
 function runArgs() {
   saveProject();
-  return { code: editor.value, stdin: $("#stdinInput").value, files: state.project.files, filename: state.project.current };
+  return { code: editor.value, stdin: "", files: state.project.files, filename: state.project.current };
 }
 
 async function runPlain() {
   endTrace(false);
-  clearOut();
   showPane("out");
   editor.setMarks({});
-  appendOut(`$ python ${state.project.current}\n`, "sys");
   setRunning(true);
+  shell.restart(state.project.current);
   const t0 = performance.now();
   try {
     const r = await runtime.run(runArgs());
     if (r.error) { appendOut(r.error, "err"); markErrorLine(r.error); }
     const ms = Math.round(performance.now() - t0);
-    appendOut(`\n进程结束 · Exit Code ${r.ok ? 0 : 1} · ${ms} ms\n`, "sys");
+    shell.newline();
+    appendOut(`进程结束 · Exit Code ${r.ok ? 0 : 1} · ${ms} ms\n`, "sys");
     effects.beep(r.ok ? "end" : "exception");
   } catch (err) {
     appendOut(`\n${err.message}\n`, "err");
@@ -427,10 +398,9 @@ $("#checkBtn").addEventListener("click", async () => {
 });
 
 $("#testBtn").addEventListener("click", async () => {
-  clearOut();
   showPane("out");
-  appendOut("$ python -m unittest discover tests\n", "sys");
   setRunning(true);
+  shell.restart("python -m unittest discover tests");
   try {
     const r = await runtime.test({ files: runArgs().files });
     appendOut(r.output);
@@ -438,47 +408,6 @@ $("#testBtn").addEventListener("click", async () => {
     if (!r.run) appendOut("提示：在 tests/ 目录中创建 test_*.py 文件来编写单元测试。\n", "sys");
   } catch (err) { appendOut(err.message, "err"); } finally { setRunning(false); }
 });
-
-// ------------------------------------------------------------------ 交互控制台
-$("#replInput").addEventListener("keydown", async (e) => {
-  const input = e.target;
-  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-    e.preventDefault();
-    const h = state.replHistory;
-    state.replIdx = Math.max(0, Math.min(h.length, state.replIdx + (e.key === "ArrowUp" ? -1 : 1)));
-    input.value = h[state.replIdx] ?? "";
-    return;
-  }
-  if (e.key === "Tab") {
-    e.preventDefault();
-    const m = input.value.match(/[A-Za-z_]\w*$/);
-    if (!m) { input.value += "    "; return; }
-    const list = await runtime.complete(m[0]);
-    if (list.length === 1) input.value += list[0].slice(m[0].length);
-    else if (list.length) replLog(list.join("  ") + "\n", "sys");
-    return;
-  }
-  if (e.key !== "Enter") return;
-  const line = input.value;
-  input.value = "";
-  if (line.trim()) state.replHistory.push(line);
-  state.replIdx = state.replHistory.length;
-  replLog(`${$("#replPrompt").textContent} ${line}\n`, "in");
-  if (line.trim() === "%reset") { await runtime.replReset(); replLog("命名空间已重置\n", "sys"); return; }
-  try {
-    const r = await runtime.replPush(line);
-    if (r.output) replLog(r.output, r.error ? "err" : "");
-    $("#replPrompt").textContent = r.more ? "..." : ">>>";
-  } catch (err) { replLog(err.message + "\n", "err"); }
-});
-function replLog(text, cls) {
-  const log = $("#replLog");
-  const s = document.createElement("span");
-  if (cls) s.className = cls;
-  s.textContent = text;
-  log.appendChild(s);
-  log.scrollTop = log.scrollHeight;
-}
 
 // ------------------------------------------------------------------ 可视化执行
 function describeLine(code) {
@@ -494,7 +423,7 @@ function describeLine(code) {
   if (/^(try|except|finally)\b/.test(s)) return ["异常处理", s.split(/[\s:]/)[0]];
   if (/^(break|continue)\b/.test(s)) return ["跳转", s];
   if (/\bprint\s*\(/.test(s)) return ["输出", "把结果写到控制台"];
-  if (/\binput\s*\(/.test(s)) return ["输入", "从标准输入读取一行"];
+  if (/\binput\s*\(/.test(s)) return ["输入", "在 Shell 中等待用户输入一行"];
   if (/^[\w.,\s[\]()]+\s*(\+|-|\*|\/|\/\/|%|\*\*)?=(?!=)/.test(s)) return ["赋值", "计算右侧表达式并绑定到变量"];
   return ["执行", "执行这一行代码"];
 }
@@ -505,15 +434,16 @@ function eventFile(ev) {
 
 async function startTrace() {
   endTrace(false);
-  clearOut();
   showPane("out");
   showIPane("exec");
   setRunning(true);
+  shell.restart(`可视化运行 ${state.project.current}`);
+  const base = shell.text;
   $("#eventCard").innerHTML = '<p class="muted">正在记录执行轨迹…</p>';
   try {
     const r = await runtime.trace({ ...runArgs(), maxSteps: MAX_STEPS });
     setRunning(false);
-    state.trace = { ...r, idx: -1, playing: false, timer: 0, file: state.project.current };
+    state.trace = { ...r, idx: -1, playing: false, timer: 0, file: state.project.current, base };
     const sc = $("#scrubber");
     sc.max = r.events.length - 1;
     sc.value = 0;
@@ -586,11 +516,9 @@ function gotoStep(i) {
   $("#stackList").innerHTML = (ev.stack.length ? ev.stack : ["<module>"]).slice().reverse()
     .map((fn, k) => `<li class="${k === 0 ? "top" : ""}">${fn === "<module>" ? "主程序 &lt;module&gt;" : esc(fn) + "()"}</li>`).join("");
 
-  const out = $("#pane-out");
-  out.textContent = t.stdout.slice(0, ev.out);
-  if (ev.e === "end" && t.error) appendOut("\n" + t.error, t.ok ? "sys" : "err");
-  if (ev.e === "end") appendOut(`\n进程结束 · Exit Code ${t.ok ? 0 : 1} · 共 ${t.events.length} 步${t.truncated ? "（已截断）" : ""}\n`, "sys");
-  out.scrollTop = out.scrollHeight;
+  shell.setText(t.base + t.stdout.slice(0, ev.out));
+  if (ev.e === "end" && t.error) { shell.newline(); appendOut(t.error, t.ok ? "sys" : "err"); }
+  if (ev.e === "end") { shell.newline(); appendOut(`进程结束 · Exit Code ${t.ok ? 0 : 1} · 共 ${t.events.length} 步${t.truncated ? "（已截断）" : ""}\n`, "sys"); }
 
   $$("#flowHost .fc-active").forEach((n) => n.classList.remove("fc-active"));
   if (ev.ln && state.project.current === state.flowFile) {
@@ -765,7 +693,7 @@ $("#mermaidBtn").addEventListener("click", async () => {
 
 // ------------------------------------------------------------------ 模块装配
 const ctx = {
-  state, runtime, editor, effects, onViewChange, onThemeChange, blocksRunning: false,
+  state, runtime, editor, shell, effects, onViewChange, onThemeChange, blocksRunning: false,
   createEditor, showView, openFile, openInIde, saveProject, renderFiles, startTrace, buildFlow,
   questions: null, openQuestion: () => {}, openLesson: () => {},
 };
@@ -774,9 +702,8 @@ applyTheme(state.prefs.theme || "standard");
 applyPrefs();
 if (state.project.files[state.project.current] === undefined) state.project.current = Object.keys(state.project.files)[0];
 showInEditor(state.project.current);
-$("#stdinInput").value = state.project.stdin || "";
 renderFiles();
-replLog("Python Nexus 交互式解释器 · 输入 %reset 重置命名空间\n", "sys");
+shell.write("Python Nexus Shell · 程序运行结束后可在 >>> 处继续使用其中的变量 · %reset 重置 · %clear 清屏\n", "sys");
 initBlocks(ctx);
 await initPractice(ctx);
 initLearn(ctx);

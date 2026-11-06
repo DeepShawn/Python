@@ -160,8 +160,7 @@ class HostProtocolTest(unittest.TestCase):
         self.send({"id": 1, "type": "run", "payload": {"code": code, "files": files}})
         first = self.read()
         self.assertEqual(first, {"type": "stream", "stream": "stdout", "text": "start\n"})
-        prompt = self.read()
-        self.assertEqual(prompt.get("type"), "stream")  # 提示语在请求输入前刷新
+        # IDLE 式：提示语随输入请求发送，由前端在 Shell 中原位显示，程序输出中不再重复
         self.assertEqual(self.read(), {"type": "input", "prompt": "n: "})
         self.send({"type": "input_reply", "value": "21"})
         result, events = self.until_result(1)
@@ -169,6 +168,10 @@ class HostProtocolTest(unittest.TestCase):
         self.assertTrue(result["result"]["ok"], result)
         text = "".join(e.get("text", "") for e in events)
         self.assertIn("42", text)
+        self.assertNotIn("n: ", text)
+        # 程序结束后在同一命名空间中继续交互
+        self.send({"id": 9, "type": "replPush", "payload": {"line": "double(n) + 1"}})
+        self.assertEqual(self.until_result(9)[0]["result"]["output"], "43\n")
 
     def test_trace_judge_analyze_repl(self):
         self.send({"id": 2, "type": "trace", "payload": {"code": "x = 1\ny = x + 1\n", "files": {"main.py": ""}}})

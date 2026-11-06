@@ -43,13 +43,26 @@ async function check(name, fn) {
   try { await fn(); console.log("✓", name); } catch (e) { failed++; console.log("✗", name, "\n   ", e.message.split("\n")[0]); }
 }
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
-const outText = () => page.textContent("#pane-out");
-const waitOut = (s, timeout = 20000) => page.waitForFunction((t) => document.querySelector("#pane-out").textContent.includes(t), s, { timeout });
+// Shell 保留历史（与 IDLE 相同），只看最近一次 RESTART 之后的内容
+const lastRun = (t) => { const i = t.lastIndexOf("RESTART"); return i < 0 ? t : t.slice(i); };
+const outText = async () => lastRun(await page.textContent("#pane-out"));
+const waitOut = (s, timeout = 20000) => page.waitForFunction((t) => {
+  const all = document.querySelector("#pane-out").textContent;
+  const i = all.lastIndexOf("RESTART");
+  return (i < 0 ? all : all.slice(i)).includes(t);
+}, s, { timeout });
 
-async function setStdin(text) {
-  await page.click('[data-pane="stdin"]');
-  await page.fill("#stdinInput", text);
+/** 在 IDLE 式 Shell 中输入一行（程序的 input() 或 >>> 提示符） */
+async function shellType(text, root = "#pane-out") {
+  const edit = page.locator(`${root} .shell-line:not([hidden]) .shell-edit`);
+  await edit.waitFor({ state: "visible", timeout: 20000 });
+  await edit.fill(text);
+  await edit.press("Enter");
 }
+const waitProgramInput = (prompt, root = "#pane-out") => page.waitForFunction(([r, p]) => {
+  const line = document.querySelector(`${r} .shell-line`);
+  return line && !line.hidden && line.classList.contains("program") && line.textContent.includes(p);
+}, [root, prompt], { timeout: 20000 });
 async function setCode(code) {
   await page.evaluate((c) => window.nexus.editor.replaceAll(c), code);
 }
@@ -69,29 +82,51 @@ await check("直接运行多文件项目（import utils）", async () => {
   assert(out.includes("Hello, World!") && out.includes("5 5") && out.includes("Exit Code 0"), out);
 });
 
-await check("标准输入与错误行标记", async () => {
-  await setStdin("21");
+await check("Shell 中原位输入与错误行标记", async () => {
   await setCode("n = int(input('n: '))\nprint(n * 2)\nprint(1 / 0)\n");
   await page.click("#runBtn");
+  await waitProgramInput("n: ");
+  await shellType("21");
   await waitOut("Exit Code");
   const out = await outText();
   assert(out.includes("n: 21") && out.includes("42") && out.includes("ZeroDivisionError"), out);
   assert(await page.$(".cm-line.mark-error"), "应标记错误行");
 });
 
-await check("交互式 input()（标准输入用完后实时输入）", async () => {
-  await setStdin("");
-  await setCode("name = input('名字: ')\nage = int(input('年龄: '))\nprint(name, age + 1)\n");
+await check("IDLE 式 Shell：输入输出同处 + 程序结束后 >>> 继续使用变量", async () => {
+  assert(!(await page.$("#stdinInput")), "不应再有标准输入面板");
+  await setCode("print('开始')\nname = input('名字: ')\nage = int(input('年龄: '))\nprint(name, age + 1)\n");
   await page.click("#runBtn");
-  await page.waitForSelector("#inputRow:not([hidden])");
-  assert((await page.textContent("#inputPrompt")).includes("名字"), "应显示提示语");
-  await page.fill("#inputField", "小明");
-  await page.press("#inputField", "Enter");
-  await page.waitForFunction(() => !document.querySelector("#inputRow").hidden && document.querySelector("#inputPrompt").textContent.includes("年龄"));
-  await page.fill("#inputField", "17");
-  await page.press("#inputField", "Enter");
+  await waitProgramInput("名字: ");
+  await shellType("小明");
+  await waitProgramInput("年龄: ");
+  await shellType("17");
   await waitOut("Exit Code");
-  assert((await outText()).includes("小明 18"), await outText());
+  const out = await outText();
+  assert(/开始\s*名字: 小明\s*年龄: 17\s*小明 18/.test(out), out);
+  assert(out.includes("RESTART"), "应有 RESTART 分隔线");
+  await page.waitForFunction(() => document.querySelector("#pane-out .shell-prompt").textContent === ">>> ");
+  await shellType("name * 2");
+  await waitOut("'小明小明'");
+  await shellType("def f(x):");
+  await shellType("    return x + age");
+  await shellType("");
+  await shellType("f(3)");
+  await waitOut("20");
+});
+
+await check("字符串和注释中不弹出代码补全", async () => {
+  await setCode("");
+  await page.click("#editor .cm-content");
+  await page.keyboard.type('s = "pri');
+  await page.waitForTimeout(600);
+  assert(!(await page.$(".cm-tooltip-autocomplete")), "字符串中不应补全");
+  await page.keyboard.type('"\n# pri');
+  await page.waitForTimeout(600);
+  assert(!(await page.$(".cm-tooltip-autocomplete")), "注释中不应补全");
+  await page.keyboard.type("\npri");
+  await page.waitForSelector(".cm-tooltip-autocomplete", { timeout: 3000 });
+  await page.keyboard.press("Escape");
 });
 
 await check("离线爬虫：requests + BeautifulSoup（本地 wheel）", async () => {
@@ -114,7 +149,6 @@ await check("终止死循环", async () => {
 });
 
 await check("可视化逐行运行（循环按真实顺序）", async () => {
-  await setStdin("");
   await setCode("total = 0\nfor i in range(3):\n    total += i\nprint(total)\n");
   await page.selectOption("#speedSelect", "4");
   await page.click("#visualBtn");
@@ -166,13 +200,11 @@ await check("单元测试", async () => {
   assert((await outText()).includes("全部通过（2 个测试）"), await outText());
 });
 
-await check("交互控制台", async () => {
-  await page.click('[data-pane="repl"]');
-  await page.fill("#replInput", "x = 6");
-  await page.press("#replInput", "Enter");
-  await page.fill("#replInput", "x * 7");
-  await page.press("#replInput", "Enter");
-  await page.waitForFunction(() => document.querySelector("#replLog").textContent.includes("42"));
+await check("Shell 交互解释器", async () => {
+  await page.click('[data-pane="out"]');
+  await shellType("x = 6");
+  await shellType("x * 7");
+  await waitOut("42");
 });
 
 await check("三种主题切换", async () => {
@@ -238,14 +270,14 @@ await check("考试：限时作答、交卷评分、成绩记录", async () => {
 });
 
 await check("积木编程：生成 Python 并运行", async () => {
-  await page.click('.tabs [data-view="ide"]');
-  await setStdin("4");
   await page.click('.tabs [data-view="blocks"]');
   await page.waitForSelector("#blocklyHost .blocklySvg", { timeout: 20000 });
   await page.waitForFunction(() => window.nexus.blocks.code().includes("int(input("));
   const code = await page.evaluate(() => window.nexus.blocks.code());
   assert(code.includes("for i in range(1, n + 1)") && code.includes("% 2 == 0"), code);
   await page.click("#blkRun");
+  await waitProgramInput("n: ", "#blkOut");
+  await shellType("4", "#blkOut");
   await page.waitForFunction(() => document.querySelector("#blkOut").textContent.includes("Exit Code"), null, { timeout: 20000 });
   const out = await page.textContent("#blkOut");
   assert(out.includes("1 奇数") && out.includes("4 偶数"), out);
@@ -311,15 +343,17 @@ await check("原生运行时：Tauri 桥接 + 嵌入式 CPython 宿主", async (
   assert((await p2.textContent("#sbRuntime")).includes("Native CPython"), await p2.textContent("#sbRuntime"));
   assert(await p2.evaluate(() => document.documentElement.classList.contains("native")), "应显示原生菜单");
   await p2.evaluate(() => window.nexus.editor.replaceAll("import requests, sys\nn = int(input('n: '))\nprint(sys.implementation.name, n * 2, requests.get('http://nexus.local/api/products').json()['total'])\n"));
-  await p2.click('[data-pane="stdin"]');
-  await p2.fill("#stdinInput", "");
   await p2.click("#runBtn");
-  await p2.waitForSelector("#inputRow:not([hidden])", { timeout: 20000 });
-  await p2.fill("#inputField", "21");
-  await p2.press("#inputField", "Enter");
+  await p2.waitForSelector("#pane-out .shell-line.program:not([hidden])", { timeout: 20000 });
+  await p2.locator("#pane-out .shell-edit").fill("21");
+  await p2.locator("#pane-out .shell-edit").press("Enter");
   await p2.waitForFunction(() => document.querySelector("#pane-out").textContent.includes("Exit Code"), null, { timeout: 20000 });
   const out = await p2.textContent("#pane-out");
-  assert(out.includes("cpython 42 12"), out);
+  assert(out.includes("n: 21") && out.includes("cpython 42 12"), out);
+  await p2.waitForFunction(() => document.querySelector("#pane-out .shell-prompt").textContent === ">>> ");
+  await p2.locator("#pane-out .shell-edit").fill("n + 1");
+  await p2.locator("#pane-out .shell-edit").press("Enter");
+  await p2.waitForFunction(() => document.querySelector("#pane-out").textContent.includes("22"), null, { timeout: 10000 });
   // 可视化执行与终止重启
   await p2.evaluate(() => window.nexus.editor.replaceAll("x = 1\nfor i in range(2):\n    x += i\n"));
   await p2.click("#visualBtn");

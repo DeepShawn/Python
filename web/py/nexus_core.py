@@ -41,24 +41,36 @@ def set_input_provider(provider):
 def make_input(stdin_text, echo_to=None, interactive=True):
     """返回一个 input() 替代函数。
 
-    先按行读取「标准输入」面板中的预置文本；读完后若运行环境支持交互输入，
-    则通过 INPUT_PROVIDER 实时向用户索取，否则抛出 EOFError。
+    先按行读取预置文本（判题用例、自动测试）；读完后若运行环境支持交互输入，
+    则通过 INPUT_PROVIDER 实时向用户索取（IDLE 式：提示语与输入都显示在 Shell 中），否则抛出 EOFError。
+
+    echo_to 为 None 时输出直接流向 Shell：交互输入由前端在 Shell 中原位显示，这里不再回显，避免重复；
+    echo_to 为 StringIO（可视化追踪、判题）时把提示语与输入写入记录，保证回放完整。
     """
     lines = iter((stdin_text or "").splitlines())
 
     def fake_input(prompt=""):
         out = echo_to if echo_to is not None else sys.stdout
         prompt = str(prompt)
-        out.write(prompt)
         try:
             value = next(lines)
         except StopIteration:
             provider = INPUT_PROVIDER if interactive else None
-            value = provider(prompt) if provider is not None else None
+            if provider is None:
+                out.write(prompt)
+                raise EOFError("没有更多输入（当前环境不支持交互式 input()）") from None
+            if echo_to is None:
+                sys.stdout.flush()          # 先显示之前的输出，再在其后原位输入
+                value = provider(prompt)
+            else:
+                out.write(prompt)
+                value = provider(prompt)
+                if value is not None:
+                    out.write(str(value) + "\n")
             if value is None:
-                raise EOFError("没有更多输入：请在「标准输入」面板中为 input() 提供数据") from None
-            value = str(value)
-        out.write(value + "\n")
+                raise EOFError("输入已结束（EOF）") from None
+            return str(value)
+        out.write(prompt + value + "\n")
         return value
 
     return fake_input
@@ -85,14 +97,16 @@ def _line_limiter(max_lines):
     return tracer
 
 
-def run_plain(source, stdin="", filename="main.py", max_lines=None, capture=False):
+def run_plain(source, stdin="", filename="main.py", max_lines=None, capture=False, namespace=None):
     """直接运行源代码。
 
     capture=False 时 print 直接写到 sys.stdout（Pyodide 中由 Worker 流式转发）。
+    namespace 指定运行用的全局命名空间（IDLE 式 Shell：程序结束后在同一命名空间继续交互）。
     返回 {"ok", "error", "stdout"}。
     """
     out = io.StringIO() if capture else None
-    g = {"__name__": "__main__", "__file__": filename, "__builtins__": builtins}
+    g = namespace if namespace is not None else {}
+    g.update({"__name__": "__main__", "__file__": filename, "__builtins__": builtins})
     g["input"] = make_input(stdin, echo_to=out)
     result = {"ok": True, "error": None, "stdout": ""}
     old_trace = sys.gettrace()

@@ -162,3 +162,24 @@ class UnittestRunnerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShellTest(unittest.TestCase):
+    def test_run_main_then_repl_shares_namespace(self):
+        from nexus_core import set_input_provider
+        from nexus_repl import run_main, shell
+        import io
+        from contextlib import redirect_stdout
+        set_input_provider(lambda p: "5")
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                r = run_main("x = int(input('x: '))\nprint(x * 2)")
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(buf.getvalue(), "10\n")   # 交互输入不回显（由 Shell 原位显示）
+            self.assertEqual(shell.push("x + 1")["output"], "6\n")
+            self.assertEqual(shell.push("input('again: ')")["output"], "'5'\n")
+            run_main("y = 1")
+            self.assertEqual(shell.push("'x' in dir()")["output"], "False\n")  # 重启后清空
+        finally:
+            set_input_provider(None)

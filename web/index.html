@@ -106,30 +106,14 @@
 
         <div class="bottom panel">
           <div class="subtabs" role="tablist">
-            <button data-pane="out" class="active">输出</button>
-            <button data-pane="repl">交互控制台</button>
-            <button data-pane="stdin">标准输入</button>
+            <button data-pane="out" class="active" title="IDLE 式 Shell：程序输出、input() 与 >>> 交互都在这里">Shell</button>
             <button data-pane="check">编译检查</button>
             <span class="grow"></span>
-            <button id="clearOutBtn" class="mini" title="清空">清空</button>
+            <span class="muted small shell-hint">↑↓ 历史 · Tab 补全 · Ctrl+D 结束输入 · Ctrl+L 清屏</span>
+            <button id="clearOutBtn" class="mini" title="清屏 (Ctrl+L)">清空</button>
           </div>
-          <div id="pane-out-wrap" class="pane active out-wrap">
-            <pre id="pane-out" class="console" aria-live="polite"></pre>
-            <form id="inputRow" class="input-row" hidden>
-              <label for="inputField" id="inputPrompt">input()</label>
-              <input id="inputField" autocomplete="off" spellcheck="false" placeholder="程序正在等待输入，回车提交">
-              <button type="submit" class="mini primary">提交</button>
-              <button type="button" id="inputEof" class="mini" title="结束输入 (EOF)">EOF</button>
-            </form>
-          </div>
-          <div id="pane-repl" class="pane repl">
-            <pre id="replLog" class="console"></pre>
-            <div class="repl-input"><span id="replPrompt">&gt;&gt;&gt;</span>
-              <input id="replInput" autocomplete="off" spellcheck="false" placeholder="输入 Python 表达式，回车执行（↑↓ 历史）" aria-label="交互式解释器输入">
-            </div>
-          </div>
-          <div id="pane-stdin" class="pane">
-            <textarea id="stdinInput" spellcheck="false" placeholder="程序的 input() 从这里按行读取。&#10;例如：&#10;小明&#10;17"></textarea>
+          <div id="pane-out-wrap" class="pane active">
+            <div id="pane-out" class="console" aria-live="polite"></div>
           </div>
           <pre id="pane-check" class="pane console"></pre>
         </div>
@@ -231,8 +215,8 @@
       <aside class="panel blocks-side">
         <div class="subtabs"><button class="active">生成的 Python 代码</button></div>
         <div id="blkCode" class="blk-code"></div>
-        <div class="subtabs"><button class="active">运行结果</button></div>
-        <pre id="blkOut" class="console"></pre>
+        <div class="subtabs"><button class="active">Shell</button></div>
+        <div id="blkOut" class="console"></div>
       </aside>
     </section>
   </main>

@@ -6,6 +6,21 @@ export async function loadCodeMirror() {
   return import(new URL("../vendor/codemirror/codemirror.js", import.meta.url).href);
 }
 
+const STRING_NODES = /String|Comment|FormatString|Escape|ReplacementField/;
+
+function makeGuard(cm) {
+  return (source) => (context) => {
+    for (let node = cm.syntaxTree(context.state).resolveInner(context.pos, -1); node; node = node.parent) {
+      if (STRING_NODES.test(node.name)) {
+        // f-string 的 {表达式} 内部允许补全
+        if (node.name === "FormatReplacement" || node.name === "ReplacementField") break;
+        return null;
+      }
+    }
+    return source(context);
+  };
+}
+
 export class CMEditor extends EventTarget {
   constructor(root, cm, { readOnly = false, gutter = true } = {}) {
     super();
@@ -13,6 +28,7 @@ export class CMEditor extends EventTarget {
     this.root = root;
     this.breakpoints = new Set();
     root.classList.add("nx-editor", "nx-cm");
+    const noCompleteInStrings = makeGuard(cm);
     root.innerHTML = "";
 
     const {
@@ -21,7 +37,7 @@ export class CMEditor extends EventTarget {
       indentOnInput, bracketMatching, foldGutter, foldKeymap, syntaxHighlighting, HighlightStyle, indentUnit,
       defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, autocompletion, completionKeymap,
       closeBrackets, closeBracketsKeymap, completeFromList, searchKeymap, highlightSelectionMatches,
-      python, pythonLanguage, tags,
+      python, pythonLanguage, tags, syntaxTree, localCompletionSource,
     } = cm;
 
     // 行标记（执行高亮、错误行等）
@@ -93,8 +109,12 @@ export class CMEditor extends EventTarget {
       highlightSpecialChars(), history(), drawSelection(), indentOnInput(), bracketMatching(), closeBrackets(),
       highlightActiveLine(), highlightActiveLineGutter(), highlightSelectionMatches(),
       indentUnit.of("    "), EditorState.tabSize.of(4),
-      python(), pythonLanguage.data.of({ autocomplete: completeFromList(words) }),
-      autocompletion({ activateOnTyping: true }),
+      python(),
+      // 字符串、f-string 与注释内部不弹出补全
+      autocompletion({
+        activateOnTyping: true,
+        override: [noCompleteInStrings(localCompletionSource), noCompleteInStrings(completeFromList(words))],
+      }),
       syntaxHighlighting(highlight), theme, marksField,
       keymap.of([
         { key: "Mod-/", run: toggleComment },

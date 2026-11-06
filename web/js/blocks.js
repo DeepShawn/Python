@@ -2,6 +2,7 @@
 // 积木保存为项目中的 <模块名>.py（生成的代码）与 <模块名>.blocks.json（积木布局），可在 IDE 中 import。
 import { $, esc, toast } from "./ui.js";
 import { store } from "./storage.js";
+import { Shell } from "./shell.js";
 
 const TOOLBOX = {
   kind: "categoryToolbox",
@@ -186,22 +187,25 @@ export function initBlocks(ctx) {
     $("#blkLoad").innerHTML = '<option value="">加载积木…</option>' + files.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join("");
   }
 
+  // 积木运行结果也是 IDLE 式 Shell：输出与 input() 在同一处（不提供 >>> 交互）
+  const out = new Shell($("#blkOut"), { runtime: ctx.runtime, repl: false });
+  ctx.blocksShell = out;
+
   $("#blkRun").onclick = async () => {
     await ensure();
-    const out = $("#blkOut");
-    out.textContent = "";
     const src = code();
-    if (!src.trim()) { out.textContent = "工作区是空的"; return; }
-    const onStream = (e) => { out.textContent += e.detail.text; };
-    ctx.runtime.addEventListener("stream", onStream);
+    if (!src.trim()) { out.clear(); out.write("工作区是空的\n", "sys"); return; }
+    out.clear();
+    out.setRunning(true);
     ctx.blocksRunning = true;
     try {
-      const r = await ctx.runtime.run({ code: src, stdin: $("#stdinInput").value, files: { ...ctx.state.project.files, "blocks_run.py": src }, filename: "blocks_run.py" });
-      if (r.error) out.textContent += r.error;
-      out.textContent += `\n进程结束 · Exit Code ${r.ok ? 0 : 1}\n`;
-    } catch (err) { out.textContent += err.message; } finally {
+      const r = await ctx.runtime.run({ code: src, stdin: "", files: { ...ctx.state.project.files, "blocks_run.py": src }, filename: "blocks_run.py" });
+      if (r.error) { out.newline(); out.write(r.error, "err"); }
+      out.newline();
+      out.write(`进程结束 · Exit Code ${r.ok ? 0 : 1}\n`, "sys");
+    } catch (err) { out.write(err.message + "\n", "err"); } finally {
       ctx.blocksRunning = false;
-      ctx.runtime.removeEventListener("stream", onStream);
+      out.setRunning(false);
     }
   };
   $("#blkVisual").onclick = async () => {

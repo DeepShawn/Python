@@ -56,7 +56,7 @@ import nexus_core, nexus_tracer, nexus_flow, nexus_repl, nexus_judge, nexus_net
 import nexus_js
 nexus_core.set_input_provider(nexus_js.request_input)
 nexus_net.install()
-_nexus_repl = nexus_repl.Repl()
+_nexus_repl = nexus_repl.shell
 `);
   try {
     const res = await fetch(WHEEL_BASE + "index.json");
@@ -174,7 +174,7 @@ const handlers = {
   async run({ code, stdin, files, filename }) {
     syncProject(files);
     await ensurePackages(Object.values(files || {}).concat(code));
-    return call("nexus_core.run_plain", { source: code, stdin, filename: `${PROJECT_DIR}/${filename}` });
+    return call("nexus_repl.run_main", { source: code, stdin: stdin || "", filename: `${PROJECT_DIR}/${filename}` });
   },
   async trace({ code, stdin, files, filename, maxSteps }) {
     syncProject(files);

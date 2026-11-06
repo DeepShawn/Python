@@ -1,6 +1,7 @@
 // Python Nexus 课程数据（8 个阶段）。
 // 课时结构：知识讲解 → 可执行示例 → 运行过程动画 → 练习 → 自动评测。
-// 字段：id、title、body（HTML）、code、stdin（可选）、files（附带的项目文件，可选）、practice（配套题目 id，可选）。
+// 字段：id、title、body（HTML）、code、files（附带的项目文件，可选）、practice（配套题目 id，可选）、
+//       testInput（可选：仅供自动测试运行示例时模拟键盘输入；界面中的 input() 在 Shell 里实时输入）。
 
 export const COURSE = [
   // ======================================================================== 零基础
@@ -76,12 +77,12 @@ print(round(0.1 + 0.2, 2))`,
         id: "l-input", title: "input() 与类型转换",
         body: `
 <p><code>input()</code> 读取用户输入，结果<strong>永远是字符串</strong>。做数学运算前需要用 <code>int()</code> 或 <code>float()</code> 转换。</p>
-<p>程序的输入可以预先写在底部「标准输入」面板里（每行对应一次 <code>input()</code>）；面板中的内容用完后，程序会在输出区<strong>实时等待你输入</strong>。本课已预填两行输入。</p>`,
+<p>运行后程序会在底部的 <strong>Shell</strong> 中停下来等待输入：直接在提示语后面输入并回车，就像 Python 自带的 IDLE 一样。程序结束后，还可以在 <code>&gt;&gt;&gt;</code> 后继续输入 <code>name</code>、<code>age</code> 查看变量。</p>`,
         code: `name = input("你的名字: ")
 age = int(input("你的年龄: "))
 print(name, "明年", age + 1, "岁")
 print(type(age))`,
-        stdin: "小明\n17",
+        testInput: "小明\n17",
         practice: "p-hello",
       },
       {
@@ -122,13 +123,13 @@ print(0 <= x < 10)`,
         id: "l-if", title: "条件判断 if / elif / else",
         body: `
 <p><code>if</code> 根据条件选择执行哪一段代码。冒号后面的代码块必须<strong>缩进</strong>（通常 4 个空格）。</p>
-<p>点击「流程图」查看这段代码自动生成的控制流程图，再用「可视化运行」观察实际走了哪一条分支。修改标准输入中的数字再试一次。</p>`,
+<p>点击「流程图」查看这段代码自动生成的控制流程图，再用「可视化运行」观察实际走了哪一条分支。多运行几次，在 Shell 中输入不同的数字试试。</p>`,
         code: `n = int(input("n: "))
 if n % 2 == 0:
     print("偶数")
 else:
     print("奇数")`,
-        stdin: "7",
+        testInput: "7",
         practice: "p-parity",
       },
       {
@@ -145,7 +146,7 @@ elif score >= 60:
 else:
     grade = "D"
 print(f"{score} 分，等级 {grade}")`,
-        stdin: "85",
+        testInput: "85",
         practice: "p-max3",
       },
       {

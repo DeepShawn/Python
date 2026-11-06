@@ -73,7 +73,7 @@ class Host:
         self.out = proto_out or sys.stdout
         self.inp = proto_in or sys.stdin
         self.lock = threading.Lock()
-        self.repl = nexus_repl.Repl()
+        self.repl = nexus_repl.shell
         self.net_server = None
         self.net_mode = nexus_net.install()
         nexus_core.set_input_provider(self._request_input)
@@ -166,7 +166,7 @@ class Host:
 
     def h_run(self, code, stdin="", files=None, filename="main.py"):
         self.sync_project(files)
-        return nexus_core.run_plain(code, stdin=stdin, filename=self.path_of(filename))
+        return nexus_repl.run_main(code, stdin=stdin, filename=self.path_of(filename))
 
     def h_trace(self, code, stdin="", files=None, filename="main.py", maxSteps=3000):  # noqa: N803
         self.sync_project(files)

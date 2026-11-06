@@ -64,7 +64,7 @@ class LessonTest(unittest.TestCase):
                         os.chdir(d)
                         sys.path.insert(0, d)
                         try:
-                            r = run_plain(lesson["code"], stdin=lesson.get("stdin", ""), capture=True,
+                            r = run_plain(lesson["code"], stdin=lesson.get("testInput", ""), capture=True,
                                           filename=os.path.join(d, "main.py"))
                         finally:
                             sys.path.remove(d)

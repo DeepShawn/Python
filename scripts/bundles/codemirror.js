@@ -4,10 +4,10 @@ export { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLi
   Decoration, ViewPlugin } from "@codemirror/view";
 export { EditorState, StateField, StateEffect, RangeSet, Compartment } from "@codemirror/state";
 export { indentOnInput, bracketMatching, foldGutter, foldKeymap, syntaxHighlighting, HighlightStyle,
-  indentUnit } from "@codemirror/language";
+  indentUnit, syntaxTree } from "@codemirror/language";
 export { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment } from "@codemirror/commands";
 export { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap,
   completeFromList } from "@codemirror/autocomplete";
 export { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-export { python, pythonLanguage } from "@codemirror/lang-python";
+export { python, pythonLanguage, localCompletionSource } from "@codemirror/lang-python";
 export { tags } from "@lezer/highlight";
