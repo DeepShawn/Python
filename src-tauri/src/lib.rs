@@ -158,10 +158,12 @@ fn py_kill(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg_attr(mobile, allow(dead_code))]
 fn is_text_file(p: &Path) -> bool {
     p.extension().and_then(|e| e.to_str()).map(|e| TEXT_EXT.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
 }
 
+#[cfg_attr(mobile, allow(dead_code))]
 fn collect_files(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
@@ -186,6 +188,7 @@ fn collect_files(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) ->
 }
 
 /// 校验相对路径，防止写到项目目录之外。
+#[cfg_attr(mobile, allow(dead_code))]
 fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let rel_path = Path::new(rel);
     if rel_path.is_absolute() || rel_path.components().any(|c| !matches!(c, Component::Normal(_))) {
@@ -194,6 +197,7 @@ fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(root.join(rel_path))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 async fn open_project_folder(app: AppHandle) -> Result<Option<FolderProject>, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -209,6 +213,7 @@ async fn open_project_folder(app: AppHandle) -> Result<Option<FolderProject>, St
     Ok(Some(FolderProject { dir: dir.display().to_string(), files }))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 async fn save_project_folder(app: AppHandle, dir: Option<String>, files: BTreeMap<String, String>) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -247,10 +252,30 @@ async fn pick_files(app: AppHandle, filters: Vec<Filter>) -> Result<Vec<String>,
     Ok(picked.into_iter().filter_map(|p| p.into_path().ok()).map(|p| p.display().to_string()).collect())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn reveal_path(app: AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
+// 移动端（Android）没有本地文件夹选择与「在文件管理器中显示」，前端也不会显示这些菜单项。
+#[cfg(mobile)]
+#[tauri::command]
+async fn open_project_folder() -> Result<Option<FolderProject>, String> {
+    Err("移动端不支持打开本地文件夹".into())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn save_project_folder(_dir: Option<String>, _files: BTreeMap<String, String>) -> Result<Option<String>, String> {
+    Err("移动端不支持保存到本地文件夹".into())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+fn reveal_path(_path: String) -> Result<(), String> {
+    Err("移动端不支持在文件管理器中显示".into())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
