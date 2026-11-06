@@ -1,0 +1,14 @@
+{
+  "name": "Python Nexus — 离线 Python 学习与开发系统",
+  "short_name": "Python Nexus",
+  "description": "离线 Python IDE、课程、习题、可视化执行与流程图",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
