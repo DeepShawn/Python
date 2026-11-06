@@ -1,0 +1,17 @@
+{
+  "name": "python-nexus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Python Nexus — 全平台离线 Python 学习与开发系统（网页版 MVP）",
+  "type": "module",
+  "scripts": {
+    "vendor": "node scripts/vendor-pyodide.mjs",
+    "bank": "python3 tools/build_question_bank.py",
+    "serve": "python3 -m http.server 8000 --directory web",
+    "test": "python3 -m unittest discover -s tests -v",
+    "test:e2e": "node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "pyodide": "0.27.7"
+  }
+}
