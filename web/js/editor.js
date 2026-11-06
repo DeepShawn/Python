@@ -63,6 +63,22 @@ export function highlightPython(code) {
   return html + "\n";
 }
 
+let cmLoader = null;
+
+/**
+ * 创建编辑器：优先使用本地打包的 CodeMirror 6（npm run vendor 生成），
+ * 不可用时回退到下面的轻量编辑器。两者接口一致。
+ */
+export async function createEditor(root, opts = {}) {
+  if (!cmLoader) {
+    cmLoader = import("./cm-editor.js")
+      .then(async (mod) => ({ mod, cm: await mod.loadCodeMirror() }))
+      .catch(() => null);
+  }
+  const loaded = await cmLoader;
+  return loaded ? new loaded.mod.CMEditor(root, loaded.cm, opts) : new Editor(root, opts);
+}
+
 export class Editor extends EventTarget {
   constructor(root, { readOnly = false, gutter = true } = {}) {
     super();
@@ -123,6 +139,23 @@ export class Editor extends EventTarget {
     this.marks.clear();
     this._refresh();
     this.scroll.scrollTop = 0;
+  }
+
+  /** 以「用户输入」的方式替换全部内容（触发 change 事件）。 */
+  replaceAll(text) {
+    this.ta.value = text;
+    this.ta.dispatchEvent(new Event("input"));
+  }
+
+  focus() { this.ta.focus(); }
+
+  /** 在光标处插入文本；back 为插入后光标回退的字符数（用于成对括号）。 */
+  insertText(text, back = 0) {
+    this._insert(text);
+    if (back) {
+      const p = this.ta.selectionStart - back;
+      this.ta.setSelectionRange(p, p);
+    }
   }
 
   get lineHeight() {

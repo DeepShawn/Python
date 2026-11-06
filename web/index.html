@@ -24,6 +24,8 @@
       <button role="tab" data-view="ide" class="active">编程 IDE</button>
       <button role="tab" data-view="learn">学习</button>
       <button role="tab" data-view="practice">习题</button>
+      <button role="tab" data-view="exam">考试</button>
+      <button role="tab" data-view="blocks">积木</button>
     </nav>
     <div class="top-actions">
       <label class="sr-only" for="themeSelect">运行风格</label>
@@ -57,6 +59,12 @@
           <button data-act="export">导出项目 (.json)</button>
           <button data-act="import">导入项目 / .py 文件</button>
           <button data-act="reset">恢复示例项目</button>
+          <hr class="native-only">
+          <button data-act="openFolder" class="native-only">打开本地项目文件夹…</button>
+          <button data-act="saveFolder" class="native-only">保存到本地文件夹…</button>
+          <button data-act="netServe" class="native-only">启动本机教学网站 (HTTP)</button>
+          <button data-act="installWheel" class="native-only">离线安装第三方库 (.whl)…</button>
+          <button data-act="buildExe" class="native-only">打包为 EXE…</button>
         </div>
         <input type="file" id="importInput" accept=".json,.py,.txt" multiple hidden>
       </aside>
@@ -85,6 +93,14 @@
           <button id="testBtn" title="运行 tests/ 中的 unittest">🧪 测试</button>
           <button id="flowBtn" title="生成流程图">⬡ 流程图</button>
         </div>
+        <div id="symbar" class="symbar" aria-label="符号快捷栏">
+          <button data-ins="    " title="缩进">⇥</button><button data-ins=":">:</button><button data-ins="()" data-back="1">( )</button>
+          <button data-ins="[]" data-back="1">[ ]</button><button data-ins="{}" data-back="1">{ }</button><button data-ins='""' data-back="1">" "</button>
+          <button data-ins="=">=</button><button data-ins="==">==</button><button data-ins="+">+</button><button data-ins="-">-</button>
+          <button data-ins="*">*</button><button data-ins="/">/</button><button data-ins="%">%</button><button data-ins="<">&lt;</button>
+          <button data-ins=">">&gt;</button><button data-ins="_">_</button><button data-ins="#">#</button><button data-ins=",">,</button>
+          <button data-ins=".">.</button><button data-ins="'">'</button>
+        </div>
         <div id="editor" class="editor-host"></div>
         <input type="range" id="scrubber" class="scrubber" min="0" max="0" value="0" hidden aria-label="执行进度">
 
@@ -97,7 +113,15 @@
             <span class="grow"></span>
             <button id="clearOutBtn" class="mini" title="清空">清空</button>
           </div>
-          <pre id="pane-out" class="pane console active" aria-live="polite"></pre>
+          <div id="pane-out-wrap" class="pane active out-wrap">
+            <pre id="pane-out" class="console" aria-live="polite"></pre>
+            <form id="inputRow" class="input-row" hidden>
+              <label for="inputField" id="inputPrompt">input()</label>
+              <input id="inputField" autocomplete="off" spellcheck="false" placeholder="程序正在等待输入，回车提交">
+              <button type="submit" class="mini primary">提交</button>
+              <button type="button" id="inputEof" class="mini" title="结束输入 (EOF)">EOF</button>
+            </form>
+          </div>
           <div id="pane-repl" class="pane repl">
             <pre id="replLog" class="console"></pre>
             <div class="repl-input"><span id="replPrompt">&gt;&gt;&gt;</span>
@@ -149,6 +173,8 @@
           <div id="callGraph" class="graph-list muted">生成流程图后显示。</div>
           <h4>模块导入关系</h4>
           <div id="importGraph" class="graph-list muted">生成流程图后显示。</div>
+          <h4>类继承关系</h4>
+          <div id="classGraph" class="graph-list muted">生成流程图后显示。</div>
         </div>
       </aside>
     </section>
@@ -174,6 +200,40 @@
         <ul id="qList" class="q-list"></ul>
       </aside>
       <article id="question" class="panel question"></article>
+    </section>
+    <!-- ================= 考试 ================= -->
+    <section id="view-exam" class="view" aria-label="考试">
+      <aside class="panel exam-nav">
+        <div class="panel-head"><span>试卷</span></div>
+        <ul id="examList" class="q-list"></ul>
+        <div class="panel-head sub"><span>成绩记录</span></div>
+        <ul id="examHistory" class="history"></ul>
+      </aside>
+      <article id="examMain" class="panel question"></article>
+    </section>
+
+    <!-- ================= 积木编程 ================= -->
+    <section id="view-blocks" class="view" aria-label="积木编程">
+      <div class="blocks-main">
+        <div class="toolbar">
+          <button id="blkRun" class="primary">▶ 运行</button>
+          <button id="blkVisual">◉ 在 IDE 中可视化运行</button>
+          <span class="sep"></span>
+          <label class="sr-only" for="blkName">模块名</label>
+          <input id="blkName" class="name-input" value="blocks_main" spellcheck="false" title="模块名（保存为 .py）">
+          <button id="blkSave">保存为模块</button>
+          <select id="blkLoad" aria-label="加载积木文件"><option value="">加载积木…</option></select>
+          <button id="blkExample">示例</button>
+          <button id="blkClear" class="danger">清空</button>
+        </div>
+        <div id="blocklyHost" class="blockly-host"><p class="muted pad">正在加载积木编辑器…</p></div>
+      </div>
+      <aside class="panel blocks-side">
+        <div class="subtabs"><button class="active">生成的 Python 代码</button></div>
+        <div id="blkCode" class="blk-code"></div>
+        <div class="subtabs"><button class="active">运行结果</button></div>
+        <pre id="blkOut" class="console"></pre>
+      </aside>
     </section>
   </main>
 

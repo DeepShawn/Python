@@ -13,6 +13,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 __all__ = [
+    "INPUT_PROVIDER",
+    "set_input_provider",
     "StepLimitExceeded",
     "make_input",
     "format_user_traceback",
@@ -26,21 +28,36 @@ class StepLimitExceeded(BaseException):
     """执行行数超过上限（防止死循环卡死界面）。"""
 
 
-def make_input(stdin_text, echo_to=None):
-    """返回一个从预置文本读取的 input() 替代函数。
+# 交互式输入提供者：预置的标准输入用完后，input() 调用它向用户实时索取一行。
+# 浏览器 Worker 通过 SharedArrayBuffer 阻塞等待；桌面宿主通过 JSON 行协议等待；None 表示不支持。
+INPUT_PROVIDER = None
 
-    浏览器中无法同步阻塞等待键盘输入，因此程序的输入通过“标准输入”面板预先提供，
-    每次 input() 读取一行。
+
+def set_input_provider(provider):
+    global INPUT_PROVIDER
+    INPUT_PROVIDER = provider
+
+
+def make_input(stdin_text, echo_to=None, interactive=True):
+    """返回一个 input() 替代函数。
+
+    先按行读取「标准输入」面板中的预置文本；读完后若运行环境支持交互输入，
+    则通过 INPUT_PROVIDER 实时向用户索取，否则抛出 EOFError。
     """
     lines = iter((stdin_text or "").splitlines())
 
     def fake_input(prompt=""):
         out = echo_to if echo_to is not None else sys.stdout
-        out.write(str(prompt))
+        prompt = str(prompt)
+        out.write(prompt)
         try:
             value = next(lines)
         except StopIteration:
-            raise EOFError("没有更多输入：请在「标准输入」面板中为 input() 提供数据") from None
+            provider = INPUT_PROVIDER if interactive else None
+            value = provider(prompt) if provider is not None else None
+            if value is None:
+                raise EOFError("没有更多输入：请在「标准输入」面板中为 input() 提供数据") from None
+            value = str(value)
         out.write(value + "\n")
         return value
 

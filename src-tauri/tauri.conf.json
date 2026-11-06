@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Python Nexus",
+  "version": "0.2.0",
+  "identifier": "com.pythonnexus.app",
+  "build": {
+    "frontendDist": "../web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Python Nexus",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "shortDescription": "全平台离线 Python 学习与开发系统",
+    "longDescription": "集 Python 学习、编程、代码运行、交互调试、习题训练、流程图生成与可视化编程于一体的离线 IDE。",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png", "icons/icon.ico"],
+    "resources": {
+      "../web/py/": "py/",
+      "resources/": "resources/"
+    },
+    "windows": {
+      "nsis": { "languages": ["SimpChinese", "English"], "installMode": "currentUser" },
+      "wix": { "language": ["zh-CN", "en-US"] }
+    }
+  }
+}

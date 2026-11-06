@@ -1,0 +1,4 @@
+# 题库编译（Argon2id 哈希、Ed25519 签名）所需的开发依赖
+argon2-cffi>=23.1
+cryptography>=42
+beautifulsoup4>=4.12

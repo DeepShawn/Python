@@ -1,0 +1,23 @@
+{
+ "p-sum": "a = int(input())\nb = int(input())\nprint(a + b)",
+ "p-hello": "name = input()\nprint(f'你好，{name}！')",
+ "p-parity": "n = int(input())\nprint('偶数' if n % 2 == 0 else '奇数')",
+ "p-max3": "a = int(input())\nb = int(input())\nc = int(input())\nm = a\nif b > m:\n    m = b\nif c > m:\n    m = c\nprint(m)",
+ "cf-even-sum": "n = int(input())\ntotal = 0\nfor i in range(1, n + 1):\n    if i % 2 == 0:\n        total += i\nprint(total)",
+ "fl-while-sum": "n = int(input())\ni = 1\nt = 0\nwhile i <= n:\n    t += i\n    i += 1\nprint(t)",
+ "p-word-count": "def word_count(text):\n    counts = {}\n    for w in text.split():\n        counts[w] = counts.get(w, 0) + 1\n    return counts",
+ "p-fact": "def fact(n):\n    r = 1\n    for i in range(2, n + 1):\n        r *= i\n    return r",
+ "p-debug-avg": "def average(nums):\n    return sum(nums) / len(nums) if nums else 0",
+ "rec-fib": "def fib(n):\n    return n if n < 2 else fib(n - 1) + fib(n - 2)",
+ "p-safe-int": "def safe_int(s):\n    try:\n        return int(s)\n    except ValueError:\n        return None",
+ "md-stack": "class Stack:\n    def __init__(self):\n        self.items = []\n    def push(self, x):\n        self.items.append(x)\n    def pop(self):\n        return self.items.pop() if self.items else None\n    def peek(self):\n        return self.items[-1] if self.items else None\n    def is_empty(self):\n        return not self.items\n    def size(self):\n        return len(self.items)",
+ "md-rect": "class Rectangle:\n    def __init__(self, w, h):\n        self.w, self.h = w, h\n    def area(self):\n        return self.w * self.h\n    def perimeter(self):\n        return 2 * (self.w + self.h)",
+ "p-gen-evens": "def evens(n):\n    for i in range(0, n, 2):\n        yield i",
+ "p-top-word": "from collections import Counter\n\ndef top_word(text):\n    return Counter(text.split()).most_common(1)[0][0]",
+ "p-bubble": "def bubble_sort(items):\n    d = list(items)\n    for i in range(len(d)):\n        for j in range(len(d) - 1 - i):\n            if d[j] > d[j + 1]:\n                d[j], d[j + 1] = d[j + 1], d[j]\n    return d",
+ "p-binsearch": "def bsearch(items, target):\n    lo, hi = 0, len(items) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if items[mid] == target:\n            return mid\n        if items[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1",
+ "p-brackets": "def valid(s):\n    stack = []\n    pairs = {')': '(', ']': '[', '}': '{'}\n    for ch in s:\n        if ch in pairs:\n            if not stack or stack.pop() != pairs[ch]:\n                return False\n        else:\n            stack.append(ch)\n    return not stack",
+ "p-two-sum": "def two_sum(nums, target):\n    seen = {}\n    for i, x in enumerate(nums):\n        if target - x in seen:\n            return (seen[target - x], i)\n        seen[x] = i",
+ "cr-titles": "import re\nimport requests\n\nhtml = requests.get('http://nexus.local/news?page=1').text\nfor t in re.findall(r'class=\"title\"[^>]*>([^<]+)<', html):\n    print(t)",
+ "cr-api": "import requests\n\npage = 1\ntotal = 0\nwhile True:\n    data = requests.get('http://nexus.local/api/products', params={'page': page}).json()\n    total += sum(p['stock'] for p in data['items'])\n    if not data['has_next']:\n        break\n    page += 1\nprint(total)"
+}

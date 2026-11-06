@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 .DS_Store
 test-results/
+content/keys/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/python/

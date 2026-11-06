@@ -5,7 +5,7 @@
 """
 import ast
 
-__all__ = ["build_flow", "to_mermaid", "call_graph", "import_graph", "analyze"]
+__all__ = ["build_flow", "to_mermaid", "call_graph", "import_graph", "class_graph", "analyze"]
 
 MAX_TEXT = 48
 
@@ -288,6 +288,20 @@ def import_graph(files):
     return result
 
 
+def class_graph(source):
+    """类继承关系：{类名: {"bases": [...], "methods": [...], "line": 行号}}。"""
+    tree = ast.parse(source)
+    result = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ClassDef):
+            result[n.name] = {
+                "bases": [ast.unparse(b) for b in n.bases],
+                "methods": [m.name for m in n.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))],
+                "line": n.lineno,
+            }
+    return result
+
+
 def analyze(source, files=None):
     """一次性返回流程图、Mermaid 文本、调用图、导入图。语法错误时返回错误信息。"""
     try:
@@ -300,4 +314,5 @@ def analyze(source, files=None):
         "mermaid": to_mermaid(flow),
         "calls": call_graph(source),
         "imports": import_graph(files or {}),
+        "classes": class_graph(source),
     }
