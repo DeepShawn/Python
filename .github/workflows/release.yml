@@ -1,0 +1,50 @@
+name: 发布 Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签（例如 v0.2.0，需已存在）"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 测试并构建全部平台
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  release:
+    name: 创建 GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -la dist
+      - name: 选择发布说明
+        id: notes
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ -f "docs/releases/$TAG.md" ]; then echo "path=docs/releases/$TAG.md" >> "$GITHUB_OUTPUT"; else echo "path=" >> "$GITHUB_OUTPUT"; fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: Python Nexus ${{ steps.notes.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
+          files: |
+            dist/*.exe
+            dist/*.msi
+            dist/*.apk
+            dist/*.zip
